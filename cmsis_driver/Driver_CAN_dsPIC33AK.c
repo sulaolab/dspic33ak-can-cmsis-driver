@@ -384,6 +384,9 @@ static int32_t CAN_PowerControl(uint32_t index, ARM_POWER_STATE state)
 
 static uint32_t CAN_GetClock(uint32_t index)
 {
+    if (!g_can_ctx[index].enabled) {
+        return 0u;   /* RTE-disabled instance */
+    }
     return g_can_ctx[index].can_clk_hz;
 }
 
@@ -458,7 +461,9 @@ static ARM_CAN_OBJ_CAPABILITIES CAN_ObjectGetCapabilities(uint32_t index, uint32
 {
     ARM_CAN_OBJ_CAPABILITIES caps = {0};
 
-    (void)index;
+    if (!g_can_ctx[index].enabled) {
+        return caps;   /* RTE-disabled instance exposes no objects */
+    }
     if (obj_idx == CAN_OBJ_TX) {
         caps.tx           = 1u;
         caps.message_depth = 4u;   /* TX queue depth */
@@ -586,6 +591,9 @@ static int32_t CAN_Control(uint32_t index, uint32_t control, uint32_t arg)
 
     switch (control & ARM_CAN_CONTROL_Msk) {
     case ARM_CAN_SET_FD_MODE:
+        if ((arg != ARM_CAN_FD_MODE_DISABLE) && (arg != ARM_CAN_FD_MODE_ENABLE)) {
+            return ARM_DRIVER_ERROR_PARAMETER;
+        }
         ctx->fd_mode = (arg != 0u) ? 1u : 0u;
         if (ctx->powered) {
             /* In normal operation, switch the HAL between NORMAL_FD and

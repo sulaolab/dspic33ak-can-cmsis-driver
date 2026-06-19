@@ -56,7 +56,9 @@ SetBitrate -> SetMode/MessageSend -> RECEIVE event -> MessageRead). See
 `docs/cmsis_can_official_gap_summary.md` for the full API mapping.
 
 `RTE_Device_CAN_dsPIC33AK_example.h` is a CAN-only example configuration file.
-Integrated applications should copy the required definitions into their own
+The driver includes `RTE_Device.h` when one is on the include path and otherwise
+falls back to this bundled example, so it builds standalone. Integrated
+applications should copy the required `RTE_CANx` definitions into their own
 application-level `RTE_Device.h` or equivalent configuration header.
 
 A minimal copy of the ARM CMSIS-Driver API headers (`Driver_CAN.h`,
