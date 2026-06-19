@@ -5,7 +5,7 @@ The files in this directory are a vendor copy of the dsPIC33AK CAN FD HAL.
 Upstream repository:
 
 - Repository: https://github.com/sulaolab/dspic33ak-can-hal
-- Branch: main
+- Branch: pre-publish-qc (pre-merge; will be main at publish)
 - Source directory: src/
 
 Synchronized into this repository under:
@@ -14,7 +14,7 @@ Synchronized into this repository under:
 
 ## Current Synchronized Revision
 
-- Upstream commit: 409ff338abcd885cdee6cb05b7503826fa1d209b
+- Upstream commit: 754407fc5470c7d9c677aa6f976a2b88268443ac
 
 This revision is synchronized from the upstream `main` branch.
 
