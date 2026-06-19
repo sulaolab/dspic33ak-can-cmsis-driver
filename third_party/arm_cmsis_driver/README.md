@@ -1,12 +1,12 @@
 # ARM CMSIS-Driver Headers
 
 This directory contains a minimal third-party copy of ARM CMSIS-Driver headers
-required to build the dsPIC33AK CMSIS-Driver I2C wrapper used by this project.
+required to build the dsPIC33AK CMSIS-Driver CAN wrapper used by this project.
 
 ## Imported files
 
 - Include/Driver_Common.h
-- Include/Driver_I2C.h
+- Include/Driver_CAN.h
 
 ## Source
 
@@ -33,5 +33,5 @@ update is needed, re-import the files from the upstream CMSIS source and keep
 the original copyright and SPDX license headers intact.
 
 This directory intentionally contains only the minimal CMSIS-Driver API headers
-needed by the local I2C CMSIS-Driver wrapper. It is not a full CMSIS, CMSIS-Core,
+needed by the local CAN CMSIS-Driver wrapper. It is not a full CMSIS, CMSIS-Core,
 CMSIS-DSP, or Microchip Harmony distribution.

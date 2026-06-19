@@ -39,10 +39,10 @@ with a documented limitation.
 
 | API | Status | Notes |
 |---|---|---|
-| `MessageSend(0, ...)` | OK | CAN FD, BRS, 11/29-bit IDs; returns bytes accepted |
+| `MessageSend(0, ...)` | OK | CAN FD, BRS, 11/29-bit IDs; returns bytes accepted. RTR (`rtr=1`) rejected = gap (data frames only) |
 | `MessageRead(1, ...)` | OK | pops from the wrapper RX ring (filled in the ISR); returns bytes read |
-| `Control(ARM_CAN_SET_FD_MODE)` | OK | re-applies config |
-| `Control(ARM_CAN_ABORT_MESSAGE_SEND)` | OK | `dspic33ak_canfd_tx_abort` |
+| `Control(ARM_CAN_SET_FD_MODE)` | OK | switches normal operation between CAN FD and Classic CAN; while disabled, FD frames / >8-byte payloads are rejected |
+| `Control(ARM_CAN_ABORT_MESSAGE_SEND)` | OK | `dspic33ak_canfd_tx_abort`; `arg` must be the TX object (0) |
 | `Control(RETRANSMISSION / TRANSCEIVER_DELAY)` | gap | not exposed (TDC is automatic) |
 | `GetStatus` | OK | unit state (active / passive / bus-off) + TX/RX error counts from CxTREC |
 | `SignalObjectEvent(RECEIVE)` | OK | RX FIFO drained to a ring in the ISR, then signalled |

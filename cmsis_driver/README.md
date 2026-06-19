@@ -32,7 +32,10 @@ interrupt storm when the read is deferred).
 - `SetMode`: `NORMAL`, `MONITOR` (listen-only), `LOOPBACK_INTERNAL`,
   `LOOPBACK_EXTERNAL`; `INITIALIZATION` is a no-op (bring-up in `PowerControl`)
 - `MessageSend(0, ...)` / `MessageRead(1, ...)` — CAN FD, BRS, 11/29-bit IDs
-- `Control(ARM_CAN_SET_FD_MODE)` and `Control(ARM_CAN_ABORT_MESSAGE_SEND)`
+- `Control(ARM_CAN_SET_FD_MODE)` — switches normal operation between CAN FD and
+  Classic CAN. While FD is disabled, FD frames (`edl=1`) and payloads larger than
+  8 bytes are rejected with `ARM_DRIVER_ERROR_UNSUPPORTED`.
+- `Control(ARM_CAN_ABORT_MESSAGE_SEND)` — `arg` must be the TX object (0)
 - `GetStatus` — unit state (active / passive / bus-off) + TX/RX error counts
 - Events: `ARM_CAN_EVENT_RECEIVE` / `RECEIVE_OVERRUN` (object 1) and
   `ARM_CAN_EVENT_UNIT_BUS_OFF`
@@ -46,6 +49,8 @@ advertise what is available.
   path is not yet validated on this silicon).
 - `ObjectSetFilter` (exact/range/mask identifier filtering): the RX object is
   accept-all only.
+- RTR (remote-transmit-request) frames: `MessageSend` with `rtr=1` is rejected;
+  data frames only.
 - `ARM_CAN_MODE_RESTRICTED`, `Control(ARM_CAN_CONTROL_RETRANSMISSION)`,
   `Control(ARM_CAN_SET_TRANSCEIVER_DELAY)`, `ARM_POWER_LOW`.
 
@@ -56,12 +61,20 @@ power/clock/pins. Before `PowerControl(ARM_POWER_FULL)` the application must
 enable the module (`PMD3.CxMD = 0`), start the CAN clock (FCAN), map PPS (TX out,
 **RX in — required even for loopback**) and drive the transceiver standby.
 
-## Configuration (RTE_Device_CAN_dsPIC33AK_example.h)
+## Configuration (RTE)
 
-`RTE_CAN1` / `RTE_CAN2` enable the drivers; `RTE_CANx_CLK_HZ`,
-`RTE_CANx_NOMINAL_BPS`, `RTE_CANx_DATA_BPS`, `RTE_CANx_SAMPLE_PCT`,
-`RTE_CANx_FD_MODE`, `RTE_CANx_TIMEOUT_MS`, `RTE_CANx_IRQ_PRIORITY` provide the
-defaults applied at `PowerControl(ARM_POWER_FULL)`.
+The driver includes `RTE_Device.h` when one is on the include path (the CMSIS
+convention), and otherwise falls back to the bundled
+`RTE_Device_CAN_dsPIC33AK_example.h` so it also builds standalone. For
+integration, copy the `RTE_CANx` defines from the example into your application
+`RTE_Device.h`.
+
+`RTE_CAN1` / `RTE_CAN2` enable the drivers — a disabled instance's `Initialize`
+returns `ARM_DRIVER_ERROR_UNSUPPORTED`. `RTE_CANx_CLK_HZ`, `RTE_CANx_NOMINAL_BPS`,
+`RTE_CANx_DATA_BPS`, `RTE_CANx_SAMPLE_PCT`, `RTE_CANx_FD_MODE`,
+`RTE_CANx_TIMEOUT_MS`, `RTE_CANx_IRQ_PRIORITY` provide the defaults applied at
+`PowerControl(ARM_POWER_FULL)` (`RTE_CANx_FD_MODE` sets the initial FD/Classic
+mode; `ARM_CAN_SET_FD_MODE` changes it at runtime).
 
 ## Tick provider
 

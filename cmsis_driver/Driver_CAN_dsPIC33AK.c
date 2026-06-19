@@ -30,7 +30,19 @@
 #include <stdint.h>
 
 #include "Driver_CAN_dsPIC33AK.h"
-#include "RTE_Device_CAN_dsPIC33AK_example.h"
+/* RTE configuration. Prefer the application's RTE_Device.h when one is on the
+ * include path; otherwise fall back to the CAN-only example template so the
+ * wrapper still builds standalone. For integration, copy the RTE_CANx defines
+ * from RTE_Device_CAN_dsPIC33AK_example.h into your application RTE_Device.h. */
+#if defined(__has_include)
+#  if __has_include("RTE_Device.h")
+#    include "RTE_Device.h"
+#  else
+#    include "RTE_Device_CAN_dsPIC33AK_example.h"
+#  endif
+#else
+#  include "RTE_Device_CAN_dsPIC33AK_example.h"
+#endif
 #include "dspic33ak_canfd_node.h"
 #include "dspic33ak_canfd_isr.h"
 
@@ -178,6 +190,14 @@ static bool can_map_mode(ARM_CAN_MODE arm_mode, dspic33ak_canfd_mode_t *hal_mode
     }
 }
 
+/* Normal-operation HAL mode for the instance: CAN FD when fd_mode is set
+ * (ARM_CAN_SET_FD_MODE / RTE_CANx_FD_MODE), classic CAN otherwise. */
+static dspic33ak_canfd_mode_t can_normal_mode_for_ctx(const can_cmsis_context_t *ctx)
+{
+    return (ctx->fd_mode != 0u) ? DSPIC33AK_CANFD_MODE_NORMAL_FD
+                                : DSPIC33AK_CANFD_MODE_NORMAL_CLASSIC;
+}
+
 /* (Re)apply HAL init for the context's current settings + the given mode, then
  * register the event callback and enable RX/error interrupts. */
 static int32_t can_apply_init(can_cmsis_context_t *ctx, dspic33ak_canfd_mode_t mode);
@@ -237,6 +257,13 @@ static int32_t can_apply_init(can_cmsis_context_t *ctx, dspic33ak_canfd_mode_t m
     dspic33ak_canfd_config_t cfg;
     dspic33ak_canfd_status_t st;
 
+    /* Quiesce the event layer before init drops the module into config mode, so
+     * no interrupt fires mid-reconfigure. can_apply_init() may run on an already
+     * powered instance (SetMode / SET_FD_MODE re-apply); on the first bring-up
+     * the disable is simply a harmless no-op. */
+    (void)dspic33ak_canfd_isr_disable(ctx->hal_inst);
+    (void)dspic33ak_canfd_isr_set_callback(ctx->hal_inst, NULL, NULL);
+
     cfg.can_clk_hz   = ctx->can_clk_hz;
     cfg.nominal_bps  = ctx->nominal_bps;
     cfg.data_bps     = ctx->data_bps;
@@ -256,6 +283,10 @@ static int32_t can_apply_init(can_cmsis_context_t *ctx, dspic33ak_canfd_mode_t m
     (void)dspic33ak_canfd_isr_set_callback(ctx->hal_inst, can_hal_event, ctx);
     st = dspic33ak_canfd_isr_enable(ctx->hal_inst, ctx->irq_priority);
     if (st != DSPIC33AK_CANFD_OK) {
+        /* Roll back so a failed re-arm doesn't leave the module initialized
+         * with a dangling callback. */
+        (void)dspic33ak_canfd_isr_set_callback(ctx->hal_inst, NULL, NULL);
+        (void)dspic33ak_canfd_deinit(ctx->hal_inst);
         return can_hal_to_arm(st);
     }
 
@@ -282,6 +313,11 @@ static int32_t CAN_Initialize(uint32_t index,
                               ARM_CAN_SignalObjectEvent_t cb_object_event)
 {
     can_cmsis_context_t *ctx = &g_can_ctx[index];
+
+    /* Honour the RTE_CANx enable flag: a disabled instance is not usable. */
+    if (!ctx->enabled) {
+        return ARM_DRIVER_ERROR_UNSUPPORTED;
+    }
 
     ctx->cb_unit     = cb_unit_event;
     ctx->cb_object   = cb_object_event;
@@ -322,7 +358,7 @@ static int32_t CAN_PowerControl(uint32_t index, ARM_POWER_STATE state)
         ctx->rx_head = 0u;
         ctx->rx_tail = 0u;
         /* Board bring-up (PMD/clock/PPS/STBY) must already be done by the app. */
-        rc = can_apply_init(ctx, DSPIC33AK_CANFD_MODE_NORMAL_FD);
+        rc = can_apply_init(ctx, can_normal_mode_for_ctx(ctx));
         if (rc != ARM_DRIVER_OK) {
             return rc;
         }
@@ -405,6 +441,9 @@ static int32_t CAN_SetMode(uint32_t index, ARM_CAN_MODE mode)
     if (!can_map_mode(mode, &hal_mode)) {
         return ARM_DRIVER_ERROR_UNSUPPORTED;   /* RESTRICTED etc. */
     }
+    if (mode == ARM_CAN_MODE_NORMAL) {
+        hal_mode = can_normal_mode_for_ctx(ctx);   /* FD or classic per SET_FD_MODE */
+    }
     if (!ctx->powered) {
         return ARM_DRIVER_ERROR;
     }
@@ -472,6 +511,14 @@ static int32_t CAN_MessageSend(uint32_t index, uint32_t obj_idx,
     if ((msg_info == NULL) || (obj_idx != CAN_OBJ_TX) || (size > 64u) ||
         ((size > 0u) && (data == NULL))) {
         return ARM_DRIVER_ERROR_PARAMETER;
+    }
+    /* Data frames only: remote-transmit-request is not supported in this scope. */
+    if (msg_info->rtr != 0u) {
+        return ARM_DRIVER_ERROR_UNSUPPORTED;
+    }
+    /* When CAN FD is disabled (Classic mode), reject FD frames and >8-byte payloads. */
+    if ((ctx->fd_mode == 0u) && ((msg_info->edl != 0u) || (size > 8u))) {
+        return ARM_DRIVER_ERROR_UNSUPPORTED;
     }
 
     frame.extended = ((msg_info->id & ARM_CAN_ID_IDE_Msk) != 0u);
@@ -541,13 +588,23 @@ static int32_t CAN_Control(uint32_t index, uint32_t control, uint32_t arg)
     case ARM_CAN_SET_FD_MODE:
         ctx->fd_mode = (arg != 0u) ? 1u : 0u;
         if (ctx->powered) {
-            return can_apply_init(ctx, ctx->mode);   /* re-apply with new FD setting */
+            /* In normal operation, switch the HAL between NORMAL_FD and
+             * NORMAL_CLASSIC; in a loopback/monitor mode keep that mode. */
+            dspic33ak_canfd_mode_t m = ctx->mode;
+            if ((m == DSPIC33AK_CANFD_MODE_NORMAL_FD) ||
+                (m == DSPIC33AK_CANFD_MODE_NORMAL_CLASSIC)) {
+                m = can_normal_mode_for_ctx(ctx);
+            }
+            return can_apply_init(ctx, m);
         }
         return ARM_DRIVER_OK;
 
     case ARM_CAN_ABORT_MESSAGE_SEND:
         if (!ctx->powered) {
             return ARM_DRIVER_ERROR;
+        }
+        if (arg != CAN_OBJ_TX) {   /* only the TX object (0) can be aborted */
+            return ARM_DRIVER_ERROR_PARAMETER;
         }
         return can_hal_to_arm(dspic33ak_canfd_tx_abort(ctx->hal_inst));
 

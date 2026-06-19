@@ -16,7 +16,8 @@ Synchronized into this repository under:
 
 - Upstream commit: d923ec93a12b32d7bc1e4f92b890504c678d6828
 
-This revision is synchronized from the upstream `main` branch.
+This revision is synchronized from the upstream `pre-publish-qc` branch
+(pre-merge; it becomes `main` once the HAL branch is published).
 
 ## Update Policy
 

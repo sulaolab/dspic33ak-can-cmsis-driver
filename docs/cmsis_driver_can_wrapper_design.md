@@ -46,17 +46,26 @@ buffers received frames; `MessageRead` retrieves them) and keeps the ISR short.
 
 `MessageSend` builds a HAL frame from `ARM_CAN_MSG_INFO` (IDE bit -> extended,
 `edl` -> FD, `brs`, length) and calls the HAL blocking `transmit` (queue). It
-returns the number of bytes accepted. `SEND_COMPLETE` is not signalled (the HAL
-TX-complete interrupt path is unvalidated on this device), so the capability is
-advertised accordingly.
+returns the number of bytes accepted. RTR (`rtr=1`) is rejected as unsupported
+(the HAL sends data frames only). When FD is disabled (Classic mode, see below)
+FD frames (`edl=1`) and payloads larger than 8 bytes are also rejected.
+`SEND_COMPLETE` is not signalled (the HAL TX-complete interrupt path is
+unvalidated on this device), so the capability is advertised accordingly.
 
 ## Mode / bitrate
 
 `SetMode` maps the ARM mode to a HAL mode and re-applies the configuration in
-that mode. `SetBitrate` caches the nominal/data rate and calls the HAL
-`set_bitrate` (config-mode drop + restore); a non-zero ARM `bit_segments` is used
-only to derive a sample point, since the HAL computes the concrete segment
-distribution.
+that mode. Normal operation uses CAN FD or Classic CAN according to the FD-mode
+flag: `Control(ARM_CAN_SET_FD_MODE)` toggles between `NORMAL_FD` and
+`NORMAL_CLASSIC` (re-applying init), and `MessageSend` enforces the classic
+constraints while FD is disabled. `SetBitrate` caches the nominal/data rate and
+calls the HAL `set_bitrate` (config-mode drop + restore); a non-zero ARM
+`bit_segments` is used only to derive a sample point, since the HAL computes the
+concrete segment distribution.
+
+Re-applying init on a powered instance (mode or FD-mode change) first quiesces
+the HAL event layer (disable + clear callback) so no interrupt fires while the
+module is briefly in configuration mode, then re-registers and re-enables it.
 
 ## Status / events
 
