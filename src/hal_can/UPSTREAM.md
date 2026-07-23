@@ -4,7 +4,7 @@ The files in this directory are a vendor copy of the dsPIC33AK CAN FD HAL.
 
 Upstream repository:
 
-- Repository: https://github.com/sulaolab/dspic33ak-can-hal
+- Repository: https://github.com/sulaolab/dspic33ak-hal-can
 - Branch: main
 - Source directory: src/
 

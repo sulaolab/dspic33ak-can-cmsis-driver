@@ -44,7 +44,7 @@ docs/
 
 The HAL vendor copy has been imported from:
 
-- https://github.com/sulaolab/dspic33ak-can-hal
+- https://github.com/sulaolab/dspic33ak-hal-can
 
 The CMSIS-Driver wrapper files are provided under `cmsis_driver/`. The wrapper
 maps the ARM CMSIS-Driver CAN API onto the CAN FD HAL: `Driver_CAN1` / `Driver_CAN2`
@@ -97,7 +97,7 @@ python tools/sync_hal_from_upstream.py
 
 The HAL-only repository is the upstream source of truth:
 
-- https://github.com/sulaolab/dspic33ak-can-hal
+- https://github.com/sulaolab/dspic33ak-hal-can
 
 HAL fixes should be applied to the upstream HAL repository first, then
 synchronized into this repository. CMSIS-Driver wrapper changes should be made in
