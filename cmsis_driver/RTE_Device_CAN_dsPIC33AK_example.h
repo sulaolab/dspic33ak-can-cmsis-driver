@@ -10,7 +10,7 @@
  * application's RTE_Device.h or equivalent configuration header.
  * Do not add I2C/USART/SPI/etc. settings to this CAN example file.
  *
- * The values below match the Perseus validation board: CAN clock 20 MHz (CLKGEN10
+ * The values below match the upstream validation board: CAN clock 20 MHz (CLKGEN10
  * / PLL1, INTDIV=5, see osc_drv), nominal 500 kbit/s, data 2 Mbit/s, 80% sample
  * point. Adjust CLK_HZ / bit rates / IRQ priority to the target board.
  */
