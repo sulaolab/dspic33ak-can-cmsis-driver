@@ -5,7 +5,7 @@ The files in this directory are a vendor copy of the NORA CAN FD HAL.
 Upstream repository:
 
 - Repository: https://github.com/sulaolab/nora-hal-dspic33ak-can
-- Branch: main
+- Branch: refactor/nora-hal
 - Source directory: src/
 
 Synchronized into this repository under:
