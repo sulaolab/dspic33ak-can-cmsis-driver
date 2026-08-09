@@ -9,8 +9,8 @@
  * ARM_DRIVER_* types appear in the HAL; they are confined to this wrapper.
  *
  * Instance mapping:
- *   Driver_CAN1 -> DSPIC33AK_CANFD_INST_1  (C1)
- *   Driver_CAN2 -> DSPIC33AK_CANFD_INST_2  (C2)
+ *   Driver_CAN1 -> NORA_CANFD_INST_1  (C1)
+ *   Driver_CAN2 -> NORA_CANFD_INST_2  (C2)
  *
  * Initial scope (v0.x): CAN FD, NORMAL / internal+external loopback / monitor
  * (listen-only) modes; one transmit object (index 0) and one accept-all receive
@@ -21,7 +21,7 @@
  *
  * The caller must perform board bring-up (module power, CAN clock, PPS including
  * the RX input, transceiver STBY) BEFORE PowerControl(ARM_POWER_FULL), exactly
- * as for the HAL's dspic33ak_canfd_init().
+ * as for the HAL's nora_canfd_init().
  */
 
 #include "Driver_CAN.h"

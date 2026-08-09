@@ -43,8 +43,8 @@
 #else
 #  include "RTE_Device_CAN_dsPIC33AK_example.h"
 #endif
-#include "dspic33ak_canfd_node.h"
-#include "dspic33ak_canfd_isr.h"
+#include "nora_canfd_node.h"
+#include "nora_canfd_isr.h"
 
 #ifndef ARM_DRIVER_VERSION_MAJOR_MINOR
 #define ARM_DRIVER_VERSION_MAJOR_MINOR(major, minor) (((major) << 8) | (minor))
@@ -103,7 +103,7 @@ static const ARM_CAN_CAPABILITIES can_capabilities = {
 /* ========================================================================== */
 
 typedef struct {
-    dspic33ak_canfd_instance_t  hal_inst;
+    nora_canfd_instance_t  hal_inst;
     uint32_t                   *msg_ram;
     uint16_t                    msg_ram_size;
 
@@ -122,32 +122,32 @@ typedef struct {
     uint8_t  initialized;
     uint8_t  powered;
 
-    dspic33ak_canfd_mode_t mode;   /* HAL operating mode currently applied */
+    nora_canfd_mode_t mode;   /* HAL operating mode currently applied */
 
     /* RX ring (producer = ISR drain, consumer = MessageRead). */
-    dspic33ak_canfd_frame_t rx_ring[CAN_RX_RING_LEN];
+    nora_canfd_frame_t rx_ring[CAN_RX_RING_LEN];
     volatile uint8_t        rx_head;
     volatile uint8_t        rx_tail;
 } can_cmsis_context_t;
 
 static can_cmsis_context_t g_can_ctx[2] = {
     {
-        DSPIC33AK_CANFD_INST_1,
+        NORA_CANFD_INST_1,
         can1_msg_ram, (uint16_t)sizeof(can1_msg_ram),
         NULL, NULL,
         RTE_CAN1_CLK_HZ, RTE_CAN1_NOMINAL_BPS, RTE_CAN1_DATA_BPS,
         RTE_CAN1_SAMPLE_PCT, RTE_CAN1_FD_MODE, RTE_CAN1_IRQ_PRIORITY, RTE_CAN1_TIMEOUT_MS,
         RTE_CAN1, 0u, 0u,
-        DSPIC33AK_CANFD_MODE_NORMAL_FD
+        NORA_CANFD_MODE_NORMAL_FD
     },
     {
-        DSPIC33AK_CANFD_INST_2,
+        NORA_CANFD_INST_2,
         can2_msg_ram, (uint16_t)sizeof(can2_msg_ram),
         NULL, NULL,
         RTE_CAN2_CLK_HZ, RTE_CAN2_NOMINAL_BPS, RTE_CAN2_DATA_BPS,
         RTE_CAN2_SAMPLE_PCT, RTE_CAN2_FD_MODE, RTE_CAN2_IRQ_PRIORITY, RTE_CAN2_TIMEOUT_MS,
         RTE_CAN2, 0u, 0u,
-        DSPIC33AK_CANFD_MODE_NORMAL_FD
+        NORA_CANFD_MODE_NORMAL_FD
     }
 };
 
@@ -165,45 +165,45 @@ uint32_t Driver_CAN_dsPIC33AK_GetMs(void)
 /* Helpers                                                                    */
 /* ========================================================================== */
 
-static int32_t can_hal_to_arm(dspic33ak_canfd_status_t st)
+static int32_t can_hal_to_arm(nora_canfd_status_t st)
 {
     switch (st) {
-    case DSPIC33AK_CANFD_OK:                  return ARM_DRIVER_OK;
-    case DSPIC33AK_CANFD_ERR_INVALID_ARG:     return ARM_DRIVER_ERROR_PARAMETER;
-    case DSPIC33AK_CANFD_ERR_BUSY:            return ARM_DRIVER_ERROR_BUSY;
-    case DSPIC33AK_CANFD_ERR_UNSUPPORTED:     return ARM_DRIVER_ERROR_UNSUPPORTED;
-    case DSPIC33AK_CANFD_ERR_NOT_INITIALIZED: return ARM_DRIVER_ERROR;
-    case DSPIC33AK_CANFD_ERR_TIMEOUT:         return ARM_DRIVER_ERROR_TIMEOUT;
+    case NORA_CANFD_OK:                  return ARM_DRIVER_OK;
+    case NORA_CANFD_ERR_INVALID_ARG:     return ARM_DRIVER_ERROR_PARAMETER;
+    case NORA_CANFD_ERR_BUSY:            return ARM_DRIVER_ERROR_BUSY;
+    case NORA_CANFD_ERR_UNSUPPORTED:     return ARM_DRIVER_ERROR_UNSUPPORTED;
+    case NORA_CANFD_ERR_NOT_INITIALIZED: return ARM_DRIVER_ERROR;
+    case NORA_CANFD_ERR_TIMEOUT:         return ARM_DRIVER_ERROR_TIMEOUT;
     default:                                  return ARM_DRIVER_ERROR;
     }
 }
 
 /* Map an ARM CAN mode to a HAL mode. Returns false for unsupported modes. */
-static bool can_map_mode(ARM_CAN_MODE arm_mode, dspic33ak_canfd_mode_t *hal_mode)
+static bool can_map_mode(ARM_CAN_MODE arm_mode, nora_canfd_mode_t *hal_mode)
 {
     switch (arm_mode) {
-    case ARM_CAN_MODE_NORMAL:            *hal_mode = DSPIC33AK_CANFD_MODE_NORMAL_FD;        return true;
-    case ARM_CAN_MODE_MONITOR:           *hal_mode = DSPIC33AK_CANFD_MODE_LISTEN_ONLY;      return true;
-    case ARM_CAN_MODE_LOOPBACK_INTERNAL: *hal_mode = DSPIC33AK_CANFD_MODE_INTERNAL_LOOPBACK; return true;
-    case ARM_CAN_MODE_LOOPBACK_EXTERNAL: *hal_mode = DSPIC33AK_CANFD_MODE_EXTERNAL_LOOPBACK; return true;
+    case ARM_CAN_MODE_NORMAL:            *hal_mode = NORA_CANFD_MODE_NORMAL_FD;        return true;
+    case ARM_CAN_MODE_MONITOR:           *hal_mode = NORA_CANFD_MODE_LISTEN_ONLY;      return true;
+    case ARM_CAN_MODE_LOOPBACK_INTERNAL: *hal_mode = NORA_CANFD_MODE_INTERNAL_LOOPBACK; return true;
+    case ARM_CAN_MODE_LOOPBACK_EXTERNAL: *hal_mode = NORA_CANFD_MODE_EXTERNAL_LOOPBACK; return true;
     default:                             return false;   /* INITIALIZATION / RESTRICTED */
     }
 }
 
 /* Normal-operation HAL mode for the instance: CAN FD when fd_mode is set
  * (ARM_CAN_SET_FD_MODE / RTE_CANx_FD_MODE), classic CAN otherwise. */
-static dspic33ak_canfd_mode_t can_normal_mode_for_ctx(const can_cmsis_context_t *ctx)
+static nora_canfd_mode_t can_normal_mode_for_ctx(const can_cmsis_context_t *ctx)
 {
-    return (ctx->fd_mode != 0u) ? DSPIC33AK_CANFD_MODE_NORMAL_FD
-                                : DSPIC33AK_CANFD_MODE_NORMAL_CLASSIC;
+    return (ctx->fd_mode != 0u) ? NORA_CANFD_MODE_NORMAL_FD
+                                : NORA_CANFD_MODE_NORMAL_CLASSIC;
 }
 
 /* (Re)apply HAL init for the context's current settings + the given mode, then
  * register the event callback and enable RX/error interrupts. */
-static int32_t can_apply_init(can_cmsis_context_t *ctx, dspic33ak_canfd_mode_t mode);
+static int32_t can_apply_init(can_cmsis_context_t *ctx, nora_canfd_mode_t mode);
 
 /* Shared HAL event callback (CAN ISR context). user_data is the instance ctx. */
-static void can_hal_event(dspic33ak_canfd_instance_t inst, uint32_t events, void *user_data)
+static void can_hal_event(nora_canfd_instance_t inst, uint32_t events, void *user_data)
 {
     can_cmsis_context_t *ctx = (can_cmsis_context_t *)user_data;
 
@@ -212,16 +212,16 @@ static void can_hal_event(dspic33ak_canfd_instance_t inst, uint32_t events, void
         return;
     }
 
-    if ((events & DSPIC33AK_CANFD_EVENT_RX_AVAILABLE) != 0u) {
-        dspic33ak_canfd_frame_t f;
+    if ((events & NORA_CANFD_EVENT_RX_AVAILABLE) != 0u) {
+        nora_canfd_frame_t f;
         bool received = false;
         bool dropped  = false;
 
         /* Drain the hardware RX FIFO into the ring HERE (ISR context) so the RX
          * interrupt does not re-assert; MessageRead later pops from the ring. */
-        while (dspic33ak_canfd_rx_available(inst)) {
+        while (nora_canfd_rx_available(inst)) {
             uint8_t nh;
-            if (dspic33ak_canfd_receive(inst, &f) != DSPIC33AK_CANFD_OK) {
+            if (nora_canfd_receive(inst, &f) != NORA_CANFD_OK) {
                 break;
             }
             nh = (uint8_t)((ctx->rx_head + 1u) % CAN_RX_RING_LEN);
@@ -240,29 +240,29 @@ static void can_hal_event(dspic33ak_canfd_instance_t inst, uint32_t events, void
             ctx->cb_object(CAN_OBJ_RX, ARM_CAN_EVENT_RECEIVE_OVERRUN);
         }
     }
-    if ((events & DSPIC33AK_CANFD_EVENT_RX_OVERFLOW) != 0u) {
+    if ((events & NORA_CANFD_EVENT_RX_OVERFLOW) != 0u) {
         if (ctx->cb_object != NULL) {
             ctx->cb_object(CAN_OBJ_RX, ARM_CAN_EVENT_RECEIVE_OVERRUN);
         }
     }
-    if ((events & DSPIC33AK_CANFD_EVENT_BUS_OFF) != 0u) {
+    if ((events & NORA_CANFD_EVENT_BUS_OFF) != 0u) {
         if (ctx->cb_unit != NULL) {
             ctx->cb_unit(ARM_CAN_EVENT_UNIT_BUS_OFF);
         }
     }
 }
 
-static int32_t can_apply_init(can_cmsis_context_t *ctx, dspic33ak_canfd_mode_t mode)
+static int32_t can_apply_init(can_cmsis_context_t *ctx, nora_canfd_mode_t mode)
 {
-    dspic33ak_canfd_config_t cfg;
-    dspic33ak_canfd_status_t st;
+    nora_canfd_config_t cfg;
+    nora_canfd_status_t st;
 
     /* Quiesce the event layer before init drops the module into config mode, so
      * no interrupt fires mid-reconfigure. can_apply_init() may run on an already
      * powered instance (SetMode / SET_FD_MODE re-apply); on the first bring-up
      * the disable is simply a harmless no-op. */
-    (void)dspic33ak_canfd_isr_disable(ctx->hal_inst);
-    (void)dspic33ak_canfd_isr_set_callback(ctx->hal_inst, NULL, NULL);
+    (void)nora_canfd_isr_disable(ctx->hal_inst);
+    (void)nora_canfd_isr_set_callback(ctx->hal_inst, NULL, NULL);
 
     cfg.can_clk_hz   = ctx->can_clk_hz;
     cfg.nominal_bps  = ctx->nominal_bps;
@@ -275,18 +275,18 @@ static int32_t can_apply_init(can_cmsis_context_t *ctx, dspic33ak_canfd_mode_t m
     cfg.msg_ram      = ctx->msg_ram;
     cfg.msg_ram_size = ctx->msg_ram_size;
 
-    st = dspic33ak_canfd_init(ctx->hal_inst, &cfg);
-    if (st != DSPIC33AK_CANFD_OK) {
+    st = nora_canfd_init(ctx->hal_inst, &cfg);
+    if (st != NORA_CANFD_OK) {
         return can_hal_to_arm(st);
     }
 
-    (void)dspic33ak_canfd_isr_set_callback(ctx->hal_inst, can_hal_event, ctx);
-    st = dspic33ak_canfd_isr_enable(ctx->hal_inst, ctx->irq_priority);
-    if (st != DSPIC33AK_CANFD_OK) {
+    (void)nora_canfd_isr_set_callback(ctx->hal_inst, can_hal_event, ctx);
+    st = nora_canfd_isr_enable(ctx->hal_inst, ctx->irq_priority);
+    if (st != NORA_CANFD_OK) {
         /* Roll back so a failed re-arm doesn't leave the module initialized
          * with a dangling callback. */
-        (void)dspic33ak_canfd_isr_set_callback(ctx->hal_inst, NULL, NULL);
-        (void)dspic33ak_canfd_deinit(ctx->hal_inst);
+        (void)nora_canfd_isr_set_callback(ctx->hal_inst, NULL, NULL);
+        (void)nora_canfd_deinit(ctx->hal_inst);
         return can_hal_to_arm(st);
     }
 
@@ -367,9 +367,9 @@ static int32_t CAN_PowerControl(uint32_t index, ARM_POWER_STATE state)
 
     case ARM_POWER_OFF:
         if (ctx->powered) {
-            (void)dspic33ak_canfd_isr_disable(ctx->hal_inst);
-            (void)dspic33ak_canfd_isr_set_callback(ctx->hal_inst, NULL, NULL);
-            (void)dspic33ak_canfd_deinit(ctx->hal_inst);
+            (void)nora_canfd_isr_disable(ctx->hal_inst);
+            (void)nora_canfd_isr_set_callback(ctx->hal_inst, NULL, NULL);
+            (void)nora_canfd_deinit(ctx->hal_inst);
         }
         ctx->powered = 0u;
         return ARM_DRIVER_OK;
@@ -422,7 +422,7 @@ static int32_t CAN_SetBitrate(uint32_t index,
     if (!ctx->powered) {
         return ARM_DRIVER_OK;   /* cached; applied at PowerControl(FULL) */
     }
-    return can_hal_to_arm(dspic33ak_canfd_set_bitrate(ctx->hal_inst, ctx->can_clk_hz,
+    return can_hal_to_arm(nora_canfd_set_bitrate(ctx->hal_inst, ctx->can_clk_hz,
                                                       ctx->nominal_bps, ctx->data_bps,
                                                       ctx->sample_pct));
 }
@@ -430,7 +430,7 @@ static int32_t CAN_SetBitrate(uint32_t index,
 static int32_t CAN_SetMode(uint32_t index, ARM_CAN_MODE mode)
 {
     can_cmsis_context_t *ctx = &g_can_ctx[index];
-    dspic33ak_canfd_mode_t hal_mode;
+    nora_canfd_mode_t hal_mode;
 
     if (!ctx->initialized) {
         return ARM_DRIVER_ERROR;
@@ -506,8 +506,8 @@ static int32_t CAN_MessageSend(uint32_t index, uint32_t obj_idx,
                                ARM_CAN_MSG_INFO *msg_info, const uint8_t *data, uint8_t size)
 {
     can_cmsis_context_t *ctx = &g_can_ctx[index];
-    dspic33ak_canfd_frame_t frame;
-    dspic33ak_canfd_status_t st;
+    nora_canfd_frame_t frame;
+    nora_canfd_status_t st;
     uint8_t i;
 
     if (!ctx->powered) {
@@ -535,8 +535,8 @@ static int32_t CAN_MessageSend(uint32_t index, uint32_t obj_idx,
         frame.data[i] = data[i];
     }
 
-    st = dspic33ak_canfd_transmit(ctx->hal_inst, &frame);
-    if (st != DSPIC33AK_CANFD_OK) {
+    st = nora_canfd_transmit(ctx->hal_inst, &frame);
+    if (st != NORA_CANFD_OK) {
         return can_hal_to_arm(st);
     }
     return (int32_t)size;   /* bytes accepted */
@@ -546,7 +546,7 @@ static int32_t CAN_MessageRead(uint32_t index, uint32_t obj_idx,
                                ARM_CAN_MSG_INFO *msg_info, uint8_t *data, uint8_t size)
 {
     can_cmsis_context_t *ctx = &g_can_ctx[index];
-    dspic33ak_canfd_frame_t frame;
+    nora_canfd_frame_t frame;
     uint8_t n, i;
 
     if (!ctx->powered) {
@@ -598,9 +598,9 @@ static int32_t CAN_Control(uint32_t index, uint32_t control, uint32_t arg)
         if (ctx->powered) {
             /* In normal operation, switch the HAL between NORMAL_FD and
              * NORMAL_CLASSIC; in a loopback/monitor mode keep that mode. */
-            dspic33ak_canfd_mode_t m = ctx->mode;
-            if ((m == DSPIC33AK_CANFD_MODE_NORMAL_FD) ||
-                (m == DSPIC33AK_CANFD_MODE_NORMAL_CLASSIC)) {
+            nora_canfd_mode_t m = ctx->mode;
+            if ((m == NORA_CANFD_MODE_NORMAL_FD) ||
+                (m == NORA_CANFD_MODE_NORMAL_CLASSIC)) {
                 m = can_normal_mode_for_ctx(ctx);
             }
             return can_apply_init(ctx, m);
@@ -614,7 +614,7 @@ static int32_t CAN_Control(uint32_t index, uint32_t control, uint32_t arg)
         if (arg != CAN_OBJ_TX) {   /* only the TX object (0) can be aborted */
             return ARM_DRIVER_ERROR_PARAMETER;
         }
-        return can_hal_to_arm(dspic33ak_canfd_tx_abort(ctx->hal_inst));
+        return can_hal_to_arm(nora_canfd_tx_abort(ctx->hal_inst));
 
     case ARM_CAN_CONTROL_RETRANSMISSION:
     case ARM_CAN_SET_TRANSCEIVER_DELAY:   /* TDC is automatic in the HAL */
@@ -627,13 +627,13 @@ static ARM_CAN_STATUS CAN_GetStatus(uint32_t index)
 {
     can_cmsis_context_t *ctx = &g_can_ctx[index];
     ARM_CAN_STATUS status = {0};
-    dspic33ak_canfd_bus_status_t bs = {0};
+    nora_canfd_bus_status_t bs = {0};
 
     if (!ctx->powered) {
         status.unit_state = ARM_CAN_UNIT_STATE_INACTIVE;
         return status;
     }
-    if (dspic33ak_canfd_get_status(ctx->hal_inst, &bs) != DSPIC33AK_CANFD_OK) {
+    if (nora_canfd_get_status(ctx->hal_inst, &bs) != NORA_CANFD_OK) {
         status.unit_state = ARM_CAN_UNIT_STATE_INACTIVE;
         return status;
     }
