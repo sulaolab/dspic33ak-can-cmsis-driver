@@ -12,8 +12,8 @@ interrupt/event layer (`isr_enable` + event callback). All `ARM_CAN_*` /
 
 | CMSIS driver object | dsPIC33AK HAL instance |
 |---|---|
-| `Driver_CAN1` | `DSPIC33AK_CANFD_INST_1` (C1) |
-| `Driver_CAN2` | `DSPIC33AK_CANFD_INST_2` (C2) |
+| `Driver_CAN1` | `NORA_CANFD_INST_1` (C1) |
+| `Driver_CAN2` | `NORA_CANFD_INST_2` (C2) |
 
 ## Object model
 
@@ -27,7 +27,7 @@ interrupt storm when the read is deferred).
 
 - `Initialize` / `Uninitialize` / `PowerControl(FULL/OFF)`
 - `GetClock`
-- `SetBitrate(NOMINAL / FD_DATA, ...)` via `dspic33ak_canfd_set_bitrate()`; a
+- `SetBitrate(NOMINAL / FD_DATA, ...)` via `nora_canfd_set_bitrate()`; a
   non-zero ARM `bit_segments` is used only to derive the sample point
 - `SetMode`: `NORMAL`, `MONITOR` (listen-only), `LOOPBACK_INTERNAL`,
   `LOOPBACK_EXTERNAL`; `INITIALIZATION` is a no-op (bring-up in `PowerControl`)
@@ -56,7 +56,7 @@ advertise what is available.
 
 ## Board bring-up (caller responsibility)
 
-As with the HAL `dspic33ak_canfd_init()`, the wrapper does NOT touch
+As with the HAL `nora_canfd_init()`, the wrapper does NOT touch
 power/clock/pins. Before `PowerControl(ARM_POWER_FULL)` the application must
 enable the module (`PMD3.CxMD = 0`), start the CAN clock (FCAN), map PPS (TX out,
 **RX in — required even for loopback**) and drive the transceiver standby.
@@ -83,13 +83,26 @@ A weak `Driver_CAN_dsPIC33AK_GetMs()` returns 0 (timeouts disabled); override it
 
 ## Interrupt vectors
 
-The dsPIC33AK CAN module raises separate RX / TX / general CPU vectors; the
-application forwards all of them to `dspic33ak_canfd_irq_handler()`:
+The dsPIC33AK CAN FD module raises separate RX / TX / general CPU vectors, each
+with its own IFS/IEC bits. The application forwards them to
+`nora_canfd_irq_handler()`, which is an ordinary function rather than a vector.
+
+Two of the three are required, and the third is conditional:
+
+- `_CxRXInterrupt` — **required.** RX-FIFO-not-empty is delivered here, *not* on
+  the general line.
+- `_CxInterrupt` (general / error) — **required.**
+- `_CxTXInterrupt` — **only if** the consumer uses the queued async transmit path
+  (`nora_canfd_tx_start()`). `nora_canfd_isr_enable()` deliberately does not arm
+  the TX line, so a consumer that never calls `tx_start()` does not need to define
+  this vector at all. That async TX path is not validated.
 
 ```c
-void __attribute__((interrupt, no_auto_psv)) _C1RXInterrupt(void) { dspic33ak_canfd_irq_handler(DSPIC33AK_CANFD_INST_1); }
-void __attribute__((interrupt, no_auto_psv)) _C1TXInterrupt(void) { dspic33ak_canfd_irq_handler(DSPIC33AK_CANFD_INST_1); }
-void __attribute__((interrupt, no_auto_psv)) _C1Interrupt  (void) { dspic33ak_canfd_irq_handler(DSPIC33AK_CANFD_INST_1); }
+void __attribute__((interrupt, no_auto_psv)) _C1RXInterrupt(void) { nora_canfd_irq_handler(NORA_CANFD_INST_1); }
+void __attribute__((interrupt, no_auto_psv)) _C1Interrupt  (void) { nora_canfd_irq_handler(NORA_CANFD_INST_1); }
+
+/* only needed if nora_canfd_tx_start() is used */
+void __attribute__((interrupt, no_auto_psv)) _C1TXInterrupt(void) { nora_canfd_irq_handler(NORA_CANFD_INST_1); }
 ```
 
 ## Basic usage

@@ -14,7 +14,7 @@ with a documented limitation.
 | `GetVersion` | OK | API v1.3, wrapper v0.x |
 | `GetCapabilities` | OK | `num_objects=2`, `fd_mode=1`, monitor + internal/external loopback = 1, restricted = 0 |
 | `Initialize(cb_unit, cb_object)` | OK | stores callbacks |
-| `Uninitialize` | OK | `dspic33ak_canfd_deinit` |
+| `Uninitialize` | OK | `nora_canfd_deinit` |
 | `PowerControl(FULL/OFF)` | OK | FULL = HAL `init`; the board must do PMD/clock/PPS first. `LOW` = gap |
 | `GetClock` | OK | returns the configured FCAN |
 
@@ -22,7 +22,7 @@ with a documented limitation.
 
 | API | Status | Notes |
 |---|---|---|
-| `SetBitrate(NOMINAL/FD_DATA, bitrate, bit_segments)` | partial | applies via `dspic33ak_canfd_set_bitrate`; the HAL derives the segment distribution from a sample point, so a non-zero `bit_segments` is used only to derive that sample point |
+| `SetBitrate(NOMINAL/FD_DATA, bitrate, bit_segments)` | partial | applies via `nora_canfd_set_bitrate`; the HAL derives the segment distribution from a sample point, so a non-zero `bit_segments` is used only to derive that sample point |
 | `SetMode(NORMAL/MONITOR/LOOPBACK_INTERNAL/LOOPBACK_EXTERNAL)` | OK | re-applies the HAL config in the new mode |
 | `SetMode(INITIALIZATION)` | partial | no-op (bring-up happens in `PowerControl(FULL)`) |
 | `SetMode(RESTRICTED)` | gap | HAL has no restricted mode |
@@ -42,7 +42,7 @@ with a documented limitation.
 | `MessageSend(0, ...)` | OK | CAN FD, BRS, 11/29-bit IDs; returns bytes accepted. RTR (`rtr=1`) rejected = gap (data frames only) |
 | `MessageRead(1, ...)` | OK | pops from the wrapper RX ring (filled in the ISR); returns bytes read |
 | `Control(ARM_CAN_SET_FD_MODE)` | OK | switches normal operation between CAN FD and Classic CAN; while disabled, FD frames / >8-byte payloads are rejected |
-| `Control(ARM_CAN_ABORT_MESSAGE_SEND)` | OK | `dspic33ak_canfd_tx_abort`; `arg` must be the TX object (0) |
+| `Control(ARM_CAN_ABORT_MESSAGE_SEND)` | OK | `nora_canfd_tx_abort`; `arg` must be the TX object (0) |
 | `Control(RETRANSMISSION / TRANSCEIVER_DELAY)` | gap | not exposed (TDC is automatic) |
 | `GetStatus` | OK | unit state (active / passive / bus-off) + TX/RX error counts from CxTREC |
 | `SignalObjectEvent(RECEIVE)` | OK | RX FIFO drained to a ring in the ISR, then signalled |

@@ -19,8 +19,8 @@ wrappers:
 * A weak `Driver_CAN_dsPIC33AK_GetMs()` the application overrides for the HAL's
   blocking-call timeouts.
 
-The wrapper depends only on the HAL public headers (`dspic33ak_canfd_node.h`,
-`dspic33ak_canfd_isr.h`) and the vendored ARM headers.
+The wrapper depends only on the HAL public headers (`nora_canfd_node.h`,
+`nora_canfd_isr.h`) and the vendored ARM headers.
 
 ## Object model
 
@@ -76,10 +76,16 @@ through `GetStatus` polling rather than as unit events in this initial scope.
 
 ## Vectors
 
-The HAL does not own interrupt vectors; on the dsPIC33AK the CAN module raises
-separate RX / TX / general CPU vectors, and the application forwards all of them
-to `dspic33ak_canfd_irq_handler()`. The wrapper registers its event callback with
-the HAL ISR layer in `PowerControl(ARM_POWER_FULL)`.
+The HAL does not own interrupt vectors; on the dsPIC33AK the CAN FD module raises
+separate RX / TX / general CPU vectors, each with its own IFS/IEC bits, and the
+application forwards them to `nora_canfd_irq_handler()`. The wrapper registers its
+event callback with the HAL ISR layer in `PowerControl(ARM_POWER_FULL)`.
+
+The RX and general vectors are both required — RX-FIFO-not-empty arrives on the RX
+line, not the general one. The TX vector is only needed by a consumer that uses the
+queued async transmit path (`nora_canfd_tx_start()`), because
+`nora_canfd_isr_enable()` does not arm the TX line. See `cmsis_driver/README.md`
+for the vector stubs.
 
 ## Board bring-up
 

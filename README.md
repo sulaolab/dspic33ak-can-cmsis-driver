@@ -1,21 +1,32 @@
 # dspic33ak-can-cmsis-driver
 
-CMSIS-Driver CAN wrapper package for the dsPIC33AK CAN FD HAL.
+CMSIS-Driver CAN wrapper package for the NORA CAN FD HAL on dsPIC33AK.
 
 This repository provides a CMSIS-Driver CAN wrapper (ARM `Driver_CAN.h`, API
-v1.3) together with a vendor copy of the dsPIC33AK CAN FD HAL.
+v1.3) together with a vendor copy of the NORA CAN FD HAL.
+
+The HAL's public API is `nora_canfd_*`, and the upstream repository is
+`nora-hal-dspic33ak-can`. Both were previously named for the part
+(`dspic33ak_canfd_*` in `dspic33ak-hal-can`). The old identifiers are **replaced**,
+not deprecated: there are no compatibility aliases, so a consumer moving to this
+revision renames its call sites. Public headers carry no chip tag — the
+`_dspic33ak` tag marks backend implementation files only.
 
 ## Repository Layout
 
 ```text
 src/
   hal_can/
-    dspic33ak_canfd.h          (instance / status / mode types, lifecycle)
-    dspic33ak_canfd_reg.h
-    dspic33ak_canfd_device.h   dspic33ak_canfd_device.c
-    dspic33ak_canfd_common.h   dspic33ak_canfd_common.c
-    dspic33ak_canfd_node.h     dspic33ak_canfd_node.c
-    dspic33ak_canfd_isr.h      dspic33ak_canfd_isr.c
+    nora_canfd.h                     (instance / status / mode types, lifecycle)
+    nora_canfd_common.h              (public)
+    nora_canfd_device.h              (public)
+    nora_canfd_node.h                (public: blocking init / transmit / receive)
+    nora_canfd_isr.h                 (public: optional event / interrupt layer)
+    nora_canfd_common_dspic33ak.c    (backend)
+    nora_canfd_device_dspic33ak.c    (backend)
+    nora_canfd_node_dspic33ak.c      (backend)
+    nora_canfd_isr_dspic33ak.c       (backend)
+    nora_canfd_dspic33ak_reg.h       (backend register layer)
     UPSTREAM.md
 
 tools/
@@ -44,7 +55,7 @@ docs/
 
 The HAL vendor copy has been imported from:
 
-- https://github.com/sulaolab/dspic33ak-hal-can
+- https://github.com/sulaolab/nora-hal-dspic33ak-can
 
 The CMSIS-Driver wrapper files are provided under `cmsis_driver/`. The wrapper
 maps the ARM CMSIS-Driver CAN API onto the CAN FD HAL: `Driver_CAN1` / `Driver_CAN2`
@@ -97,7 +108,7 @@ python tools/sync_hal_from_upstream.py
 
 The HAL-only repository is the upstream source of truth:
 
-- https://github.com/sulaolab/dspic33ak-hal-can
+- https://github.com/sulaolab/nora-hal-dspic33ak-can
 
 HAL fixes should be applied to the upstream HAL repository first, then
 synchronized into this repository. CMSIS-Driver wrapper changes should be made in
