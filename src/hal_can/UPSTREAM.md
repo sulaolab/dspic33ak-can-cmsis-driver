@@ -20,7 +20,7 @@ compatibility aliases — the old names are gone, not deprecated.
 
 ## Current Synchronized Revision
 
-- Upstream commit: 9a21226de6cff783756871153cf12cc2ecb73966
+- Upstream commit: 7767f495053f9633df7f7e67ba6fcc7854d48693
 
 This revision was taken from the upstream `refactor/nora-hal` branch, which is the
 NORA rename waiting to land. Until the fleet-wide landing puts those bytes on
